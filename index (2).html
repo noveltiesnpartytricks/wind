@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0a14">
+<title>WIND</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:#0b0a14;
+    overflow:hidden;
+    touch-action:none;
+    overscroll-behavior:none;
+    -webkit-user-select:none;user-select:none;
+    -webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;
+    font-family:Georgia,'Iowan Old Style','Times New Roman',serif;
+  }
+  #stage{
+    position:relative;
+    height:100dvh;
+    aspect-ratio:9/16;
+    max-width:100vw;
+    margin:0 auto;
+    overflow:hidden;
+    container-type:size;
+    background:#2a2347;
+  }
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #fx{pointer-events:none}
+  #grain{
+    position:absolute;inset:0;pointer-events:none;opacity:.07;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:160px 160px;
+  }
+  .layer{position:absolute;inset:0;pointer-events:none;color:#fdf3e3;text-align:center}
+  #title h1,#title .sub,#hint,#phaseWord,#hud,#dline,#dstats,#dbest,#dagain,#instr,#tip{
+    text-shadow:0 1px 3px rgba(12,9,30,.85), 0 2px 16px rgba(12,9,30,.6);
+  }
+  #tip{
+    position:absolute;top:63cqh;left:0;right:0;
+    font-size:3.1cqw;font-style:italic;letter-spacing:.2em;text-indent:.2em;
+    opacity:0;transition:opacity 1.6s ease;
+  }
+  #tip.show{opacity:.85}
+  #howto{position:absolute;top:54cqh;left:0;right:0}
+  #howto svg{width:48cqw;height:auto;opacity:.9}
+  #instr{
+    font-size:2.9cqw;font-style:italic;letter-spacing:.18em;
+    line-height:1.9;opacity:.88;padding:1.5cqh 9cqw 0;
+  }
+
+  /* title */
+  #title h1{
+    position:absolute;top:9cqh;left:0;right:0;
+    font-weight:400;font-size:11cqw;
+    letter-spacing:.58em;text-indent:.58em;
+    text-shadow:0 1px 22px rgba(30,20,60,.45);
+  }
+  #title .sub{
+    position:absolute;top:calc(9cqh + 15cqw);left:0;right:0;
+    font-size:2.6cqw;letter-spacing:.5em;text-indent:.5em;
+    font-style:italic;opacity:.7;
+  }
+  #hint{
+    position:absolute;bottom:7cqh;left:0;right:0;
+    font-size:3.2cqw;letter-spacing:.34em;text-indent:.34em;
+    font-style:italic;
+    animation:breathe 4.5s ease-in-out infinite;
+  }
+  #title{transition:opacity 1.4s ease}
+  #title.gone{opacity:0}
+
+  /* phase word */
+  #phaseWord{
+    position:absolute;top:38cqh;left:0;right:0;
+    font-size:7.5cqw;font-style:italic;font-weight:400;
+    letter-spacing:.4em;text-indent:.4em;text-transform:lowercase;
+    opacity:0;
+    text-shadow:0 1px 26px rgba(20,16,48,.55);
+    transition:opacity 2.4s ease;
+  }
+  #phaseWord.show{opacity:.88}
+
+  /* hud */
+  #hud{
+    position:absolute;top:0;left:0;right:0;padding:4cqh 6cqw 0;
+    display:flex;justify-content:space-between;
+    font-size:3.4cqw;letter-spacing:.22em;opacity:0;
+    transition:opacity 1.6s ease;
+    font-variant-numeric:tabular-nums;
+  }
+  #hud.show{opacity:.92}
+  #streak{font-size:2.6cqw;opacity:.85;margin-left:1cqw}
+
+  /* death */
+  #death{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:3cqh;
+    background:radial-gradient(ellipse at 50% 52%, rgba(10,8,24,.5) 0%, rgba(8,6,20,.85) 100%);
+    opacity:0;pointer-events:none;transition:opacity 1.2s ease;
+  }
+  #death.show{opacity:1}
+  #dline{font-style:italic;font-size:4.6cqw;letter-spacing:.14em;max-width:80%;line-height:1.7}
+  #dstats{font-size:3.4cqw;letter-spacing:.3em;opacity:.85;line-height:2}
+  #dbest{font-size:2.7cqw;letter-spacing:.3em;opacity:.55}
+  #dagain{font-style:italic;font-size:3.1cqw;letter-spacing:.3em;opacity:0;animation:breathe 4s ease-in-out infinite}
+
+  @keyframes breathe{0%,100%{opacity:.18}50%{opacity:.62}}
+  @media (prefers-reduced-motion: reduce){
+    #hint,#dagain{animation:none;opacity:.5}
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <canvas id="fx"></canvas>
+  <div id="grain"></div>
+
+  <div class="layer" id="title">
+    <h1>WIND</h1>
+    <div class="sub">a game of paper &amp; air</div>
+    <div id="howto">
+      <svg viewBox="0 0 220 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M18,84 Q70,82 120,52 T206,20" fill="none"
+              stroke="rgba(255,242,224,.55)" stroke-width="2.5"
+              stroke-linecap="round" stroke-dasharray="6 9">
+          <animate attributeName="stroke-dashoffset" from="150" to="0" dur="2.6s" repeatCount="indefinite"/>
+        </path>
+        <circle r="5" fill="rgba(255,242,224,.95)">
+          <animateMotion dur="2.6s" repeatCount="indefinite" path="M18,84 Q70,82 120,52 T206,20"/>
+        </circle>
+        <polygon points="0,-5 13,0 0,5 3.5,0" fill="#fff6ea" transform="translate(195,14) rotate(-24)"/>
+      </svg>
+      <div id="instr"></div>
+    </div>
+    <div id="hint">draw the wind</div>
+  </div>
+
+  <div class="layer"><div id="phaseWord"></div><div id="tip"></div></div>
+
+  <div class="layer" id="hud">
+    <span id="dist">0 m</span>
+    <span><span id="ringsHud">&#9675; 0</span><span id="streak"></span></span>
+  </div>
+
+  <div class="layer" id="death">
+    <div id="dline"></div>
+    <div id="dstats"></div>
+    <div id="dbest"></div>
+    <div id="dagain">tap to fly again</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ================= setup ================= */
+const stage = document.getElementById('stage');
+const glCanvas = document.getElementById('gl');
+const fxCanvas = document.getElementById('fx');
+const fctx = fxCanvas.getContext('2d');
+const REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+const $ = id => document.getElementById(id);
+
+const renderer = new THREE.WebGLRenderer({canvas: glCanvas, antialias:true});
+renderer.setPixelRatio(DPR);
+const FOV = 55;
+const camera = new THREE.PerspectiveCamera(FOV, 9/16, 0.1, 220);
+const scene = new THREE.Scene();
+const TAN = Math.tan(THREE.MathUtils.degToRad(FOV/2));
+let W=0, H=0, ASPECT=9/16;
+
+const PZ = 6;                 /* plane depth */
+let HW = 1.75, HH = TAN*PZ;   /* world half extents at plane depth */
+
+function ndcToWorld(nx, ny, dist){
+  return new THREE.Vector3(nx*TAN*dist*ASPECT, ny*TAN*dist, -dist);
+}
+function toScreen(x, y){
+  return {x:(x/(TAN*PZ*ASPECT)+1)/2*W, y:(1 - y/(TAN*PZ))/2*H};
+}
+function clamp(v,a,b){return v<a?a:(v>b?b:v)}
+function lerp(a,b,t){return a+(b-a)*t}
+function smooth(t){t=clamp(t,0,1);return t*t*(3-2*t)}
+
+/* ================= phases ================= */
+function C(h){return new THREE.Color(h)}
+const PHASES = [
+ {word:'dusk',     terrain:'mountain', len:900,
+  skyTop:C('#1e2046'), skyMid:C('#8a5d80'), hor:C('#f5b277'), ground:C('#33284a'),
+  sun:{x:-0.26,y:0.055,int:0.55,rad:0.06,col:C('#ff8c4d')}, starA:0.35, amb:'dusk',
+  chord:[110,164.81,277.18],
+  dline:'You flew until the light left the hills.'},
+ {word:'night',    terrain:'mountain', len:1500,
+  skyTop:C('#080c22'), skyMid:C('#1b2340'), hor:C('#2c3a60'), ground:C('#11142c'),
+  sun:{x:0.30,y:0.42,int:0.32,rad:0.012,col:C('#dfe8ff')}, starA:1.0, amb:'night',
+  chord:[92.5,138.59,220],
+  dline:'You flew until the stars came out.'},
+ {word:'the sea',  terrain:'sea', len:1200,
+  skyTop:C('#0a1230'), skyMid:C('#17294a'), hor:C('#2a4a6e'), ground:C('#0d1f38'),
+  sun:{x:0.22,y:0.40,int:0.36,rad:0.012,col:C('#e8f0ff')}, starA:1.0, amb:'sea',
+  chord:[73.42,110,185],
+  dline:'The sea kept your plane.'},
+ {word:'dawn',     terrain:'sea', len:1100,
+  skyTop:C('#2b3263'), skyMid:C('#b56a8a'), hor:C('#ffc890'), ground:C('#27355c'),
+  sun:{x:0.06,y:0.07,int:0.62,rad:0.05,col:C('#ffb45e')}, starA:0.18, amb:'dawn',
+  chord:[82.41,123.47,220],
+  dline:'You flew into the first light.'},
+ {word:'landfall', terrain:'hill', len:1400,
+  skyTop:C('#3f6fa8'), skyMid:C('#8fb4d4'), hor:C('#ffe6c0'), ground:C('#3c5d68'),
+  sun:{x:-0.18,y:0.16,int:0.5,rad:0.05,col:C('#fff0c8')}, starA:0, amb:'thermal',
+  chord:[110,164.81,220],
+  dline:'The green hills caught you.'},
+ {word:'midday',   terrain:'mountain', len:1500,
+  skyTop:C('#4a85c2'), skyMid:C('#a8cce6'), hor:C('#f2ecd8'), ground:C('#4f6b8a'),
+  sun:{x:0.0,y:0.45,int:0.5,rad:0.07,col:C('#ffffff')}, starA:0, amb:'dusk',
+  chord:[146.83,220,293.66],
+  dline:'You fell out of a bright sky.'},
+ {word:'sunset',   terrain:'hill', len:1300,
+  skyTop:C('#2c2350'), skyMid:C('#c25e6a'), hor:C('#ffae66'), ground:C('#3a2b48'),
+  sun:{x:0.2,y:0.06,int:0.62,rad:0.06,col:C('#ff7e3d')}, starA:0.12, amb:'thermal',
+  chord:[110,138.59,164.81],
+  dline:'You chased the sun down.'}
+];
+
+/* live palette (mutated each frame) */
+const cur = {
+  skyTop:C('#1e2046'), skyMid:C('#8a5d80'), hor:C('#f5b277'), ground:C('#33284a'),
+  sunCol:C('#ff8c4d'), sunX:-0.26, sunY:0.055, sunInt:0.55, sunRad:0.06, starA:0.35
+};
+let phaseIdx=0, nextPhaseAt=PHASES[0].len, trans=null, ambFrom='dusk', ambTo='dusk', ambK=1;
+
+function snapshotCur(){
+  return {skyTop:cur.skyTop.clone(), skyMid:cur.skyMid.clone(), hor:cur.hor.clone(),
+          ground:cur.ground.clone(), sunCol:cur.sunCol.clone(),
+          sunX:cur.sunX, sunY:cur.sunY, sunInt:cur.sunInt, sunRad:cur.sunRad, starA:cur.starA};
+}
+function startTransition(toIdx){
+  const P = PHASES[toIdx];
+  trans = {from:snapshotCur(), to:P, t:0};
+  ambFrom = ambTo; ambTo = P.amb; ambK = 0;
+  showPhaseWord(P.word);
+  audio.setChord(P.chord);
+  if(P.terrain==='sea' && !tips.sea){
+    tips.sea = true;
+    setTimeout(()=>tip('skim the swells — flying low pays double'), 4000);
+  }
+}
+function tickTransition(dt){
+  if(ambK < 1) ambK = Math.min(1, ambK + dt/5);
+  if(!trans) return;
+  trans.t += dt/5.5;
+  const k = smooth(trans.t), f = trans.from, p = trans.to;
+  cur.skyTop.copy(f.skyTop).lerp(p.skyTop, k);
+  cur.skyMid.copy(f.skyMid).lerp(p.skyMid, k);
+  cur.hor.copy(f.hor).lerp(p.hor, k);
+  cur.ground.copy(f.ground).lerp(p.ground, k);
+  cur.sunCol.copy(f.sunCol).lerp(p.sun.col, k);
+  cur.sunX = lerp(f.sunX, p.sun.x, k); cur.sunY = lerp(f.sunY, p.sun.y, k);
+  cur.sunInt = lerp(f.sunInt, p.sun.int, k); cur.sunRad = lerp(f.sunRad, p.sun.rad, k);
+  cur.starA = lerp(f.starA, p.starA, k);
+  if(trans.t >= 1) trans = null;
+}
+let wordTimer = null;
+function showPhaseWord(w){
+  const el = $('phaseWord');
+  el.textContent = w;
+  el.classList.add('show');
+  clearTimeout(wordTimer);
+  wordTimer = setTimeout(()=>el.classList.remove('show'), 3400);
+}
+/* which terrain will be current when something `lead` metres ahead arrives */
+function terrainAhead(lead){
+  let i = phaseIdx, at = nextPhaseAt, guard = 0;
+  const d = dist + lead;
+  while(d >= at && guard++ < 10){ i = (i+1)%PHASES.length; at += PHASES[i].len; }
+  return PHASES[i].terrain;
+}
+/* onboarding tips — shown once per session */
+const tips = {draw:false, ring:false, wall:false, sea:false};
+let tipTimer = null;
+function tip(text){
+  const el = $('tip');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(()=>el.classList.remove('show'), 3600);
+}
+
+/* ================= sky ================= */
+let skyMat;
+function buildSky(){
+  const dist = 60;
+  const h = TAN*dist*2*1.6, w = h*Math.max(ASPECT,1)*1.6;
+  skyMat = new THREE.ShaderMaterial({
+    uniforms:{
+      uTop:{value:cur.skyTop}, uMid:{value:cur.skyMid}, uHor:{value:cur.hor},
+      uSun:{value:cur.sunCol},
+      uHorizonY:{value:0.05*TAN*dist}, uTopY:{value:h*0.5},
+      uMidY:{value:0.05*TAN*dist + h*0.10}, uMidW:{value:h*0.10},
+      uSunPos:{value:new THREE.Vector2(0,0)},
+      uSunR:{value:1}, uSunI:{value:0.5}
+    },
+    vertexShader:`varying vec3 vPos;
+      void main(){vPos=(modelMatrix*vec4(position,1.)).xyz;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader:`varying vec3 vPos;
+      uniform vec3 uTop,uMid,uHor,uSun;
+      uniform float uHorizonY,uTopY,uMidY,uMidW,uSunR,uSunI;
+      uniform vec2 uSunPos;
+      void main(){
+        float t=clamp((vPos.y-uHorizonY)/(uTopY-uHorizonY),0.,1.);
+        vec3 col=mix(uHor,uTop,pow(t,.75));
+        float band=exp(-pow((vPos.y-uMidY)/uMidW,2.));
+        col=mix(col,uMid,band*.55);
+        vec2 d2=vec2((vPos.x-uSunPos.x)*.62,vPos.y-uSunPos.y);
+        col+=uSun*exp(-dot(d2,d2)/uSunR)*uSunI;
+        gl_FragColor=vec4(col,1.);
+      }`,
+    depthWrite:false
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w,h), skyMat);
+  mesh.position.z = -dist;
+  mesh.renderOrder = -1;
+  scene.add(mesh);
+}
+function tickSky(){
+  const sp = ndcToWorld(cur.sunX, cur.sunY, 60);
+  skyMat.uniforms.uSunPos.value.set(sp.x, sp.y);
+  const r = TAN*60;
+  skyMat.uniforms.uSunR.value = r*r*cur.sunRad;
+  skyMat.uniforms.uSunI.value = cur.sunInt;
+}
+
+/* ================= ridges (the moving paper world) ================= */
+const RIDGE_N = 7, RIDGE_GAP = 14, SPAN = RIDGE_N*RIDGE_GAP;
+const PROF_N = 160;
+const MAX_D = 4 + SPAN;            /* deepest a ridge ever sits */
+const ridges = [];
+let wallToggle = false, lastGapX = 0;
+
+/* profile = stored params; height is an analytic function of world x,
+   so geometry (built once) and collision always agree, and mountains are rigid. */
+function genProfile(r, terrain, forceLow){
+  const s1 = Math.random()*100, s2 = Math.random()*100, s3 = Math.random()*100;
+  if(terrain === 'sea'){
+    r.prof = {kind:'sea', base:-2.6+Math.random()*0.1, s1, s2};
+  } else {
+    const hill = terrain === 'hill';
+    const isWall = !forceLow && dist > 150 && (wallToggle = !wallToggle);
+    if(isWall){
+      const k = clamp(dist/2500, 0, 1);   /* difficulty ramps over ~2.5km */
+      let gapX = lastGapX + (Math.random()*2-1)*HW*0.6;
+      gapX = clamp(gapX, -HW*0.7, HW*0.7); lastGapX = gapX;
+      r.prof = {
+        kind:'wall', hill,
+        base: -2.5+Math.random()*0.3,
+        amp:  (hill ? 1.2 : 1.5) + k*(hill ? 0.6 : 1.0) + Math.random()*0.4,
+        cap:  lerp(-0.5, 0.9, k),
+        a1: 0.22+Math.random()*0.18, a2: 0.9+Math.random()*0.8, a3: 2.5+Math.random()*2,
+        s1, s2, s3,
+        gapX, gapW: lerp(1.35, 0.65, k) + Math.random()*0.35
+      };
+    } else {
+      r.prof = {
+        kind:'low',
+        base: -2.65+Math.random()*0.25,
+        amp:  0.55+Math.random()*0.35,
+        a1: 0.18+Math.random()*0.15, a2: 0.55+Math.random()*0.4,
+        s1, s2
+      };
+    }
+  }
+  r.terrain = terrain;
+  r.crossed = false;
+}
+function profileY(r, x){
+  const p = r.prof;
+  if(p.kind === 'sea')
+    return p.base + 0.06*Math.sin(x*1.5+p.s1) + 0.03*Math.sin(x*3.7+p.s2);
+  if(p.kind === 'low'){
+    const y = Math.sin(x*p.a1+p.s1)*0.5 + Math.sin(x*p.a2+p.s2)*0.35;
+    return Math.min(p.base + (y/0.85+0.5)*p.amp, -1.55);
+  }
+  /* wall */
+  let y = Math.sin(x*p.a1+p.s1)*0.45;
+  y += p.hill ? Math.sin(x*p.a2+p.s2)*0.5
+              : (1-Math.abs(Math.sin(x*p.a2+p.s2)))*0.95;
+  y += Math.sin(x*p.a3+p.s3)*0.15;
+  y = p.base + (y/1.55+0.35)*p.amp;
+  y = Math.min(y, p.cap);
+  const g = Math.exp(-Math.pow((x-p.gapX)/p.gapW, 2));
+  return y + (-2.35 - y)*g;   /* smooth carved gate down to the valley floor */
+}
+/* build rigid geometry once per profile: spans the frustum at MAX depth,
+   sampled densely in the centre (warped u) where the player actually flies */
+function buildRidgeGeo(r){
+  const halfW = TAN*MAX_D*ASPECT*1.2;
+  const bottom = -TAN*MAX_D*1.3;
+  const pos = r.geo.attributes.position.array;
+  for(let j=0;j<PROF_N;j++){
+    const v = (j/(PROF_N-1))*2 - 1;
+    const x = Math.sign(v)*v*v*halfW;
+    pos[j*6+0]=x; pos[j*6+1]=profileY(r,x); pos[j*6+2]=0;
+    pos[j*6+3]=x; pos[j*6+4]=bottom;        pos[j*6+5]=0;
+  }
+  r.geo.attributes.position.needsUpdate = true;
+}
+function buildRidges(){
+  for(let i=0;i<RIDGE_N;i++){
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PROF_N*2*3),3));
+    const idx=[];
+    for(let j=0;j<PROF_N-1;j++){const a=j*2;idx.push(a,a+1,a+2, a+1,a+3,a+2);}
+    geo.setIndex(idx);
+    const mat = new THREE.MeshBasicMaterial({color:0xffffff});
+    const mesh = new THREE.Mesh(geo, mat);
+    const r = {mesh, geo, mat, prof:null, z:-(4+i*RIDGE_GAP), crossed:false, terrain:'mountain'};
+    genProfile(r, PHASES[0].terrain, true);
+    buildRidgeGeo(r);
+    mesh.position.z = r.z;
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    ridges.push(r);
+  }
+}
+const tmpC = new THREE.Color();
+function tickRidges(dt, speed){
+  for(const r of ridges){
+    const pz = r.z;
+    r.z += speed*dt;
+    /* crossing the plane's depth */
+    if(state==='flying' && !r.crossed && pz < -PZ && r.z >= -PZ){
+      r.crossed = true;
+      const h = profileY(r, plane.x);
+      const clear = plane.y - h;
+      if(clear < 0.10) die();
+      else if(clear < 0.62){ score += (r.terrain==='sea' ? 50 : 25); grazeFx(); audio.graze(); }
+    }
+    if(r.z > 2.5){
+      r.z -= SPAN;
+      genProfile(r, terrainAhead((-r.z - PZ)*6), false);
+      buildRidgeGeo(r);
+      if(r.prof.kind==='wall' && !tips.wall){ /* first wall heads-up handled in tip check below */ }
+    }
+    /* first-wall tip when a gated ridge is ~3s out */
+    if(state==='flying' && !tips.wall && r.prof && r.prof.kind==='wall' && r.z > -34){
+      tips.wall = true;
+      tip('find the pass in the ridge');
+    }
+    r.mesh.position.z = r.z;
+    /* fog tint by distance */
+    const d = -r.z;
+    const f = Math.pow(clamp((d-PZ)/52, 0, 1), 0.85);
+    tmpC.copy(r.terrain==='sea' ? cur.ground : cur.ground).lerp(cur.hor, f*0.92);
+    r.mat.color.copy(tmpC);
+  }
+}
+
+/* ================= rings ================= */
+const RINGS_MAX = 6;
+const rings = [];
+let ringSpawnIn = 60; /* meters */
+function glowTexture(){
+  const c=document.createElement('canvas');c.width=c.height=128;
+  const x=c.getContext('2d');
+  const g=x.createRadialGradient(64,64,0,64,64,64);
+  g.addColorStop(0,'rgba(255,220,170,.85)');
+  g.addColorStop(.4,'rgba(255,190,130,.25)');
+  g.addColorStop(1,'rgba(255,190,130,0)');
+  x.fillStyle=g;x.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(c);
+}
+function buildRings(){
+  const glow = glowTexture();
+  for(let i=0;i<RINGS_MAX;i++){
+    const mesh = new THREE.Mesh(
+      new THREE.TorusGeometry(0.8,0.05,10,40),
+      new THREE.MeshBasicMaterial({color:0xffd9a0, transparent:true, opacity:0.95})
+    );
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map:glow, transparent:true, opacity:0.45,
+      blending:THREE.AdditiveBlending, depthWrite:false
+    }));
+    sprite.scale.set(3.6,3.6,1);
+    mesh.visible = sprite.visible = false;
+    scene.add(mesh); scene.add(sprite);
+    rings.push({mesh, sprite, active:false, z:0, x:0, y:0, done:false});
+  }
+}
+let lastRingX = 0;
+function spawnRing(){
+  const r = rings.find(r=>!r.active);
+  if(!r) return;
+  const sea = PHASES[phaseIdx].terrain==='sea';
+  let x = lastRingX + (Math.random()*2-1)*HW*0.9;
+  x = clamp(x, -HW*0.72, HW*0.72);
+  lastRingX = x;
+  let y = sea ? lerp(-1.95, 0.2, Math.random()) : lerp(-1.3, 1.9, Math.random());
+  /* early rings come to the player */
+  const k = clamp(dist/1500, 0, 1);
+  y = lerp(clamp(plane.y + (Math.random()*2-1)*0.9, -1.8, 2.0), y, k);
+  if(!tips.ring){ tips.ring = true; tip('fly through the rings'); }
+  r.active = true; r.done = false;
+  r.z = -78; r.x = x; r.y = y;
+  r.mesh.visible = r.sprite.visible = true;
+  r.mesh.rotation.y = 0.45;
+}
+function tickRings(dt, speed){
+  for(const r of rings){
+    if(!r.active) continue;
+    const pz = r.z;
+    r.z += speed*dt;
+    if(!r.done && pz < -PZ && r.z >= -PZ){
+      r.done = true;
+      const dx = plane.x-r.x, dy = plane.y-r.y;
+      if(state==='flying' && Math.sqrt(dx*dx+dy*dy) < 0.8) collectRing(r);
+      else streak = 0;
+      updateHud();
+    }
+    if(r.z > 1){ r.active=false; r.mesh.visible=r.sprite.visible=false; }
+    r.mesh.position.set(r.x,r.y,r.z);
+    r.sprite.position.set(r.x,r.y,r.z);
+    const fade = clamp((-r.z-PZ)/40,0,1);
+    r.mesh.material.opacity = lerp(1,0.35,fade);
+    r.sprite.material.opacity = lerp(0.5,0.12,fade);
+  }
+}
+function collectRing(r){
+  r.mesh.visible = r.sprite.visible = false;
+  ringsGot++; streak++;
+  const mult = Math.min(5, 1+Math.floor(streak/3));
+  score += 100*mult;
+  const s = toScreen(r.x, r.y);
+  bursts.push({x:s.x, y:s.y, age:0});
+  audio.chime();
+}
+
+/* ================= plane ================= */
+const plane = {x:-HW*0.3, y:0.3, vx:0, vy:0, group:null, mesh:null};
+function buildPlane(){
+  const N=[0,0,1.15], T=[0,.05,-1], WR=[.95,.34,-1], WL=[-.95,.34,-1], K=[0,-.36,-.95];
+  const tris=[{v:[N,WR,T],c:'#fff6ea'},{v:[N,T,WL],c:'#cfc4d8'},{v:[N,K,T],c:'#a99cc0'}];
+  const pos=[],col=[];
+  tris.forEach(t=>{const c=new THREE.Color(t.c);
+    t.v.forEach(p=>{pos.push(p[0],p[1],p[2]);col.push(c.r,c.g,c.b);});});
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  plane.mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}));
+  plane.group=new THREE.Group();
+  plane.group.add(plane.mesh);
+  plane.group.scale.setScalar(0.4);
+  plane.group.position.set(plane.x,plane.y,-PZ);
+  plane.group.rotation.y = Math.PI; /* nose into the scene */
+  scene.add(plane.group);
+}
+let deathSpin = 0;
+function tickPlane(dt, t){
+  if(state==='dead'){
+    plane.vy -= 3.2*dt;
+    plane.y += plane.vy*dt;
+    deathSpin += dt*6;
+    plane.group.position.set(plane.x, plane.y, -PZ);
+    plane.mesh.rotation.z = deathSpin;
+    plane.mesh.rotation.x = deathSpin*0.6;
+    return;
+  }
+  const w = sampleField(plane.x, plane.y, t);
+  if(state==='flying'){
+    plane.vx += (w.x - plane.vx)*1.65*dt;
+    plane.vy += ((w.y - plane.vy)*1.65 - 1.28)*dt;
+  } else { /* idle drift on title */
+    plane.vx += (0.0 - plane.vx)*0.8*dt;
+    plane.vy += (Math.sin(t*0.8)*0.25 - plane.vy)*0.8*dt;
+  }
+  plane.vx = clamp(plane.vx,-4,4);
+  plane.vy = clamp(plane.vy,-4,4);
+  plane.x += plane.vx*dt;
+  plane.y += plane.vy*dt;
+  /* soft walls + ceiling */
+  if(plane.x >  HW*0.9){ plane.x = HW*0.9; plane.vx = Math.min(plane.vx,0); }
+  if(plane.x < -HW*0.9){ plane.x = -HW*0.9; plane.vx = Math.max(plane.vx,0); }
+  if(plane.y >  HH*0.88){ plane.y = HH*0.88; plane.vy = Math.min(plane.vy,0); }
+  if(state==='flying' && plane.y < -HH*0.94) die();
+
+  plane.group.position.set(plane.x, plane.y, -PZ);
+  plane.mesh.rotation.z = clamp(-plane.vx*0.28, -0.7, 0.7) + Math.sin(t*0.9)*0.04;
+  plane.mesh.rotation.x = clamp(-plane.vy*0.16, -0.45, 0.45);
+}
+
+/* ================= wind field ================= */
+const GX=18, GY=26;
+const fu = new Float32Array(GX*GY), fv = new Float32Array(GX*GY);
+function fieldBounds(){ return {x0:-HW*1.1, x1:HW*1.1, y0:-HH*1.05, y1:HH*1.05}; }
+function ambient(kind, x, y, t){
+  switch(kind){
+    case 'night': return {
+      x:0.30*Math.sin(y*0.8+t*0.7)+0.28*Math.sin(x*0.5-t*0.45),
+      y:0.38*Math.sin(x*0.9+t*0.62)+0.12*Math.sin(y*0.7-t*0.3)};
+    case 'sea': return {
+      x:0.16+0.06*Math.sin(y*0.4+t*0.2),
+      y:-0.10+0.26*Math.sin(x*0.55 - t*0.12)};
+    case 'dawn': return {
+      x:0.24,
+      y:0.16*Math.sin(x*0.5+t*0.3)+0.06};
+    case 'thermal': return {
+      x:0.18+0.1*Math.sin(t*0.2),
+      y:Math.max(0, Math.sin(x*0.8+t*0.12))*0.5 - 0.12};
+    default: return { /* dusk / midday */
+      x:0.3+0.18*Math.sin(y*0.5+t*0.3),
+      y:0.14*Math.sin(x*0.6+t*0.25)};
+  }
+}
+function sampleField(x, y, t){
+  const b = fieldBounds();
+  const gx = clamp((x-b.x0)/(b.x1-b.x0)*(GX-1), 0, GX-1.001);
+  const gy = clamp((y-b.y0)/(b.y1-b.y0)*(GY-1), 0, GY-1.001);
+  const i=Math.floor(gx), j=Math.floor(gy), fx=gx-i, fy=gy-j;
+  const k00=j*GX+i, k10=k00+1, k01=k00+GX, k11=k01+1;
+  let ux = (fu[k00]*(1-fx)+fu[k10]*fx)*(1-fy) + (fu[k01]*(1-fx)+fu[k11]*fx)*fy;
+  let uy = (fv[k00]*(1-fx)+fv[k10]*fx)*(1-fy) + (fv[k01]*(1-fx)+fv[k11]*fx)*fy;
+  const a0 = ambient(ambFrom,x,y,t), a1 = ambient(ambTo,x,y,t);
+  ux += lerp(a0.x, a1.x, ambK) * ambGain;
+  uy += lerp(a0.y, a1.y, ambK) * ambGain;
+  return {x:ux, y:uy};
+}
+function deposit(x0,y0,x1,y1){
+  const dx=x1-x0, dy=y1-y0;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  if(len<0.002) return;
+  const str = Math.min(len*9, 5.0);
+  const nx=dx/len, ny=dy/len;
+  const b=fieldBounds(), R=1.15;
+  const cw=(b.x1-b.x0)/(GX-1), ch=(b.y1-b.y0)/(GY-1);
+  const i0=clamp(Math.floor((Math.min(x0,x1)-R-b.x0)/cw),0,GX-1);
+  const i1=clamp(Math.ceil ((Math.max(x0,x1)+R-b.x0)/cw),0,GX-1);
+  const j0=clamp(Math.floor((Math.min(y0,y1)-R-b.y0)/ch),0,GY-1);
+  const j1=clamp(Math.ceil ((Math.max(y0,y1)+R-b.y0)/ch),0,GY-1);
+  for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
+    const cx=b.x0+i*cw, cy=b.y0+j*ch;
+    /* distance to segment */
+    let tt=((cx-x0)*dx+(cy-y0)*dy)/(len*len); tt=clamp(tt,0,1);
+    const px=x0+dx*tt-cx, py=y0+dy*tt-cy;
+    const d2=px*px+py*py;
+    const w=Math.exp(-d2/(R*R*0.45));
+    if(w<0.02) continue;
+    const k=j*GX+i;
+    fu[k]=clamp(fu[k]+nx*str*w*0.55,-4.5,4.5);
+    fv[k]=clamp(fv[k]+ny*str*w*0.55,-4.5,4.5);
+  }
+}
+function decayField(dt){
+  const k=Math.exp(-dt/3.5);
+  for(let i=0;i<fu.length;i++){fu[i]*=k;fv[i]*=k;}
+}
+
+/* ================= fx canvas ================= */
+let particles=[], stars=[], bursts=[], trail=[], glints=[];
+const P_COUNT = REDUCE ? 110 : 210;
+function initFx(){
+  particles=[];
+  for(let i=0;i<P_COUNT;i++){const p={};respawnP(p);particles.push(p);}
+  stars=[];
+  for(let i=0;i<70;i++)stars.push({x:Math.random(),y:Math.random()*0.32,
+    r:0.4+Math.random(),ph:Math.random()*6.28,sp:0.4+Math.random()*1.1,a:0.15+Math.random()*0.5});
+  glints=[];
+  for(let i=0;i<26;i++)glints.push({x:Math.random(),y:0.62+Math.random()*0.33,
+    w:5+Math.random()*11,ph:Math.random()*6.28,sp:0.5+Math.random()*1.3,dx:0.004+Math.random()*0.008});
+  bursts=[]; trail=[];
+  fctx.setTransform(DPR,0,0,DPR,0,0);
+  fctx.clearRect(0,0,W,H);
+}
+function respawnP(p){
+  p.x = lerp(-HW*1.05, HW*1.05, Math.random());
+  p.y = lerp(-HH*1.0, HH*1.0, Math.random());
+  p.life = 3+Math.random()*4;
+  p.age = Math.random()*p.life*0.5;
+}
+let trailTimer=0;
+function drawFx(dt, t){
+  fctx.globalCompositeOperation='destination-out';
+  fctx.fillStyle='rgba(0,0,0,0.055)';
+  fctx.fillRect(0,0,W,H);
+  fctx.globalCompositeOperation='source-over';
+
+  /* streamlines (world space, projected) */
+  fctx.lineWidth=1;
+  for(const p of particles){
+    const v=sampleField(p.x,p.y,t);
+    const nx=p.x+v.x*dt, ny=p.y+v.y*dt;
+    p.age+=dt;
+    const mag=Math.sqrt(v.x*v.x+v.y*v.y);
+    let a=Math.sin(Math.min(p.age/p.life,1)*Math.PI)*(0.10+Math.min(mag*0.16,0.4));
+    if(a>0.01){
+      const s0=toScreen(p.x,p.y), s1=toScreen(nx,ny);
+      fctx.strokeStyle='rgba(255,240,222,'+a.toFixed(3)+')';
+      fctx.beginPath();fctx.moveTo(s0.x,s0.y);fctx.lineTo(s1.x,s1.y);fctx.stroke();
+    }
+    p.x=nx;p.y=ny;
+    if(p.age>p.life||Math.abs(p.x)>HW*1.15||Math.abs(p.y)>HH*1.1) respawnP(p);
+  }
+
+  /* stars */
+  if(cur.starA>0.02){
+    for(const s of stars){
+      const tw=0.5+0.5*Math.sin(t*s.sp+s.ph);
+      fctx.fillStyle='rgba(255,244,228,'+(s.a*tw*cur.starA*0.6).toFixed(3)+')';
+      fctx.beginPath();fctx.arc(s.x*W,s.y*H,s.r,0,6.283);fctx.fill();
+    }
+  }
+
+  /* moonlight on the water */
+  const seaT = (PHASES[phaseIdx].terrain==='sea') ? 1 : 0;
+  seaG += (seaT - seaG)*Math.min(1, dt*0.4);
+  if(seaG>0.03){
+    fctx.lineWidth=1.4;
+    for(const g of glints){
+      g.x += g.dx*dt; if(g.x>1.05) g.x-=1.1;
+      const tw=Math.max(0, Math.sin(t*g.sp+g.ph));
+      const a=0.22*tw*seaG;
+      if(a<0.01)continue;
+      fctx.strokeStyle='rgba(214,232,255,'+a.toFixed(3)+')';
+      fctx.beginPath();
+      fctx.moveTo(g.x*W-g.w/2, g.y*H);
+      fctx.lineTo(g.x*W+g.w/2, g.y*H);
+      fctx.stroke();
+    }
+  }
+
+  /* plane trail */
+  if(state!=='title'){
+    trailTimer+=dt;
+    if(trailTimer>0.05){
+      trailTimer=0;
+      trail.unshift(toScreen(plane.x,plane.y));
+      if(trail.length>15)trail.pop();
+    }
+    fctx.lineCap='round';
+    for(let i=1;i<trail.length;i++){
+      const a=(1-i/trail.length)*0.18;
+      fctx.strokeStyle='rgba(255,240,222,'+a.toFixed(3)+')';
+      fctx.lineWidth=2.2*(1-i/trail.length)+0.4;
+      fctx.beginPath();fctx.moveTo(trail[i-1].x,trail[i-1].y);
+      fctx.lineTo(trail[i].x,trail[i].y);fctx.stroke();
+    }
+  }
+
+  /* ring bursts */
+  for(let i=bursts.length-1;i>=0;i--){
+    const b=bursts[i];b.age+=dt;
+    const k=b.age/0.7;
+    if(k>=1){bursts.splice(i,1);continue;}
+    fctx.strokeStyle='rgba(255,225,170,'+(0.6*(1-k)).toFixed(3)+')';
+    fctx.lineWidth=2;
+    fctx.beginPath();fctx.arc(b.x,b.y,8+k*46,0,6.283);fctx.stroke();
+  }
+}
+function grazeFx(){
+  const s=toScreen(plane.x,plane.y);
+  bursts.push({x:s.x,y:s.y+10,age:0.35});
+}
+/* drawn stroke ink */
+function drawInk(x0,y0,x1,y1){
+  const s0=toScreen(x0,y0),s1=toScreen(x1,y1);
+  fctx.lineCap='round';
+  fctx.strokeStyle='rgba(255,242,224,0.5)';
+  fctx.lineWidth=3.4;
+  fctx.beginPath();fctx.moveTo(s0.x,s0.y);fctx.lineTo(s1.x,s1.y);fctx.stroke();
+}
+
+/* ================= audio ================= */
+const audio = (function(){
+  let ctx=null, master, padGain, padNotes=[], windSrc, windGain, windBp,
+      delay, delayWet, melodyIdx=0, pendingChord=PHASES[0].chord;
+  const PENT=[220,246.94,277.18,329.63,369.99,440,493.88,554.37,659.26,739.99,880];
+  function init(){
+    if(ctx) return;
+    const AC = window.AudioContext||window.webkitAudioContext;
+    if(!AC) return;
+    ctx = new AC();
+    /* iOS: play a silent blip inside the unlocking gesture to open the output route */
+    try{
+      const b=ctx.createBuffer(1,1,22050);
+      const sp=ctx.createBufferSource();sp.buffer=b;sp.connect(ctx.destination);sp.start(0);
+    }catch(e){}
+    master=ctx.createGain();master.gain.value=0.8;master.connect(ctx.destination);
+    /* delay space for chimes */
+    delay=ctx.createDelay(1);delay.delayTime.value=0.31;
+    const fb=ctx.createGain();fb.gain.value=0.34;
+    delay.connect(fb);fb.connect(delay);
+    delayWet=ctx.createGain();delayWet.gain.value=0.22;
+    delay.connect(delayWet);delayWet.connect(master);
+    /* pad */
+    padGain=ctx.createGain();padGain.gain.value=0.0;
+    const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=850;
+    const lfo=ctx.createOscillator(),lfoG=ctx.createGain();
+    lfo.frequency.value=0.05;lfoG.gain.value=220;
+    lfo.connect(lfoG);lfoG.connect(lp.frequency);lfo.start();
+    padGain.connect(lp);lp.connect(master);
+    padGain._dest=padGain;
+    audio._padIn=padGain;
+    padGain.gain.setTargetAtTime(0.085, ctx.currentTime, 0.8);
+    setChordNow(pendingChord);
+    /* wind noise */
+    const len=2*ctx.sampleRate;
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+    windSrc=ctx.createBufferSource();windSrc.buffer=buf;windSrc.loop=true;
+    windBp=ctx.createBiquadFilter();windBp.type='bandpass';windBp.frequency.value=380;windBp.Q.value=0.6;
+    windGain=ctx.createGain();windGain.gain.value=0;
+    windSrc.connect(windBp);windBp.connect(windGain);windGain.connect(master);
+    windSrc.start();
+  }
+  function setChordNow(freqs){
+    if(!ctx) {pendingChord=freqs;return;}
+    const t=ctx.currentTime;
+    padNotes.forEach(n=>{n.g.gain.setTargetAtTime(0,t,2.2);
+      n.oscs.forEach(o=>{try{o.stop(t+7);}catch(e){}});});
+    padNotes=[];
+    freqs.forEach(f=>{
+      const g=ctx.createGain();g.gain.value=0;
+      g.connect(audio._padIn);
+      const oscs=[ -3, 3 ].map(det=>{
+        const o=ctx.createOscillator();o.type='triangle';
+        o.frequency.value=f;o.detune.value=det;
+        o.connect(g);o.start();return o;
+      });
+      g.gain.setTargetAtTime(0.16,t+0.4,2.6);
+      padNotes.push({g,oscs});
+    });
+  }
+  function chime(){
+    if(!ctx)return;
+    const t=ctx.currentTime;
+    const f=PENT[melodyIdx%PENT.length];melodyIdx++;
+    [[f,0.22],[f*2,0.06]].forEach(([fr,vol])=>{
+      const o=ctx.createOscillator();o.type='sine';o.frequency.value=fr;
+      const g=ctx.createGain();
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(vol,t+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0008,t+1.4);
+      o.connect(g);g.connect(master);g.connect(delay);
+      o.start(t);o.stop(t+1.5);
+    });
+  }
+  function graze(){
+    if(!ctx)return;
+    const t=ctx.currentTime;
+    const o=ctx.createOscillator();o.type='sine';o.frequency.value=1318;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(0.05,t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0008,t+0.25);
+    o.connect(g);g.connect(delay);g.connect(master);
+    o.start(t);o.stop(t+0.3);
+  }
+  function death(){
+    if(!ctx)return;
+    const t=ctx.currentTime;
+    const o=ctx.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(140,t);
+    o.frequency.exponentialRampToValueAtTime(48,t+0.7);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0.16,t);
+    g.gain.exponentialRampToValueAtTime(0.0008,t+0.9);
+    o.connect(g);g.connect(master);
+    o.start(t);o.stop(t+1);
+    melodyIdx=0;
+    if(padGain)padGain.gain.setTargetAtTime(0.045,t,1.5);
+  }
+  function revive(){
+    if(ctx&&padGain)padGain.gain.setTargetAtTime(0.085,ctx.currentTime,2);
+  }
+  function wind(speedK,strokeK){
+    if(!ctx||!windGain)return;
+    const t=ctx.currentTime;
+    windGain.gain.setTargetAtTime(0.018+speedK*0.05+strokeK*0.07,t,0.25);
+    windBp.frequency.setTargetAtTime(300+speedK*420+strokeK*250,t,0.3);
+  }
+  function suspend(){if(ctx&&ctx.state==='running')ctx.suspend();}
+  function resume(){if(ctx&&ctx.state==='suspended')ctx.resume();}
+  /* iOS: keep nudging the context until it actually reaches running */
+  function unlock(){
+    init();
+    if(!ctx) return;
+    const tryResume = (n)=>{
+      if(!ctx) return;
+      if(ctx.state!=='running'){
+        ctx.resume().catch(()=>{});
+        if(n>0) setTimeout(()=>tryResume(n-1), 120);
+      }
+    };
+    tryResume(8);
+  }
+  return {init, setChord:setChordNow, chime, graze, death, revive, wind, suspend, resume, unlock, _padIn:null};
+})();
+
+/* ================= game state ================= */
+let state='title';   /* title | flying | dead */
+let speed=4.4, dist=0, score=0, ringsGot=0, streak=0, best=0, diedAt=0;
+let strokeHeat=0, ambGain=0.7, hasDrawn=false, drawTipT=null, seaG=0;
+
+const store = {
+  get(){ try{ return +localStorage.getItem('wind_best')||0; }catch(e){ return best; } },
+  set(v){ try{ localStorage.setItem('wind_best', v); }catch(e){} }
+};
+best = store.get();
+
+function updateHud(){
+  $('dist').textContent = Math.floor(dist)+' m';
+  const mult = Math.min(5, 1+Math.floor(streak/3));
+  $('ringsHud').innerHTML = '&#9675; '+ringsGot;
+  $('streak').textContent = mult>1 ? '×'+mult : '';
+}
+function startRun(){
+  state='flying';
+  $('title').classList.add('gone');
+  $('death').classList.remove('show');
+  $('death').style.pointerEvents='none';
+  $('hud').classList.add('show');
+  speed=4.4; dist=0; score=0; ringsGot=0; streak=0;
+  hasDrawn=false;
+  clearTimeout(drawTipT);
+  drawTipT=setTimeout(()=>{
+    if(state==='flying' && !hasDrawn) tip('draw beneath the plane to lift it');
+  }, 2400);
+  phaseIdx=0; nextPhaseAt=PHASES[0].len;
+  ambFrom=ambTo=PHASES[0].amb; ambK=1; trans=null;
+  /* snap palette to dusk */
+  const P=PHASES[0];
+  cur.skyTop.copy(P.skyTop);cur.skyMid.copy(P.skyMid);cur.hor.copy(P.hor);
+  cur.ground.copy(P.ground);cur.sunCol.copy(P.sun.col);
+  cur.sunX=P.sun.x;cur.sunY=P.sun.y;cur.sunInt=P.sun.int;cur.sunRad=P.sun.rad;cur.starA=P.starA;
+  audio.setChord(P.chord);
+  audio.revive();
+  fu.fill(0);fv.fill(0);
+  plane.x=-HW*0.3;plane.y=0.85;plane.vx=0.3;plane.vy=0;
+  plane.mesh.rotation.set(0,0,0);
+  deathSpin=0;
+  trail=[];
+  rings.forEach(r=>{r.active=false;r.mesh.visible=r.sprite.visible=false;});
+  ringSpawnIn=35;
+  ridges.forEach((r,i)=>{r.z=-(4+i*RIDGE_GAP);genProfile(r,'mountain', i<3);buildRidgeGeo(r);});
+  updateHud();
+  showPhaseWord('dusk');
+}
+function die(){
+  if(state!=='flying')return;
+  state='dead';
+  diedAt=performance.now();
+  plane.vy=Math.max(plane.vy,0.4);
+  audio.death();
+  best=Math.max(best,Math.floor(score));
+  store.set(best);
+  $('dline').textContent = PHASES[phaseIdx].dline;
+  $('dstats').innerHTML = Math.floor(dist)+' m &nbsp;·&nbsp; '+ringsGot+' rings &nbsp;·&nbsp; '+Math.floor(score)+' pts';
+  $('dbest').textContent = 'best '+best;
+  setTimeout(()=>{
+    $('death').classList.add('show');
+    $('death').style.pointerEvents='auto';
+  },700);
+}
+
+/* ================= input ================= */
+let drawing=false, lastWx=0, lastWy=0;
+function px2world(px,py){
+  return {x:((px/W)*2-1)*TAN*PZ*ASPECT, y:(1-(py/H)*2)*TAN*PZ};
+}
+function localPoint(e){
+  const r=stage.getBoundingClientRect();
+  return {x:e.clientX-r.left, y:e.clientY-r.top};
+}
+stage.addEventListener('pointerdown', e=>{
+  e.preventDefault();
+  audio.unlock(); requestWake();
+  if(state==='title'){ startRun(); }
+  else if(state==='dead'){
+    if(performance.now()-diedAt>800) startRun();
+    return;
+  }
+  const p=localPoint(e);
+  const wpt=px2world(p.x,p.y);
+  drawing=true; lastWx=wpt.x; lastWy=wpt.y;
+});
+stage.addEventListener('pointermove', e=>{
+  if(!drawing||state!=='flying')return;
+  const p=localPoint(e);
+  const wpt=px2world(p.x,p.y);
+  deposit(lastWx,lastWy,wpt.x,wpt.y);
+  drawInk(lastWx,lastWy,wpt.x,wpt.y);
+  hasDrawn=true;
+  const d=Math.hypot(wpt.x-lastWx,wpt.y-lastWy);
+  strokeHeat=Math.min(1,strokeHeat+d*1.6);
+  lastWx=wpt.x;lastWy=wpt.y;
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>
+  stage.addEventListener(ev,()=>{drawing=false;})
+);
+/* iOS audio is most reliably unlocked on touchend/pointerup */
+['pointerup','touchend'].forEach(ev=>
+  window.addEventListener(ev, ()=>audio.unlock(), {passive:true})
+);
+['touchmove','gesturestart'].forEach(ev=>
+  document.addEventListener(ev,e=>e.preventDefault(),{passive:false})
+);
+document.addEventListener('contextmenu',e=>e.preventDefault());
+$('instr').textContent =
+  (window.matchMedia('(pointer:coarse)').matches ? 'swipe' : 'click and drag')
+  + ' to draw wind beneath the plane — lift it through the rings';
+
+/* ================= wake lock / visibility ================= */
+let wakeLock=null;
+async function requestWake(){
+  try{ wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){ audio.suspend(); }
+  else { audio.resume(); requestWake(); last=performance.now(); }
+});
+
+/* ================= layout & loop ================= */
+function resize(){
+  W=stage.clientWidth;H=stage.clientHeight;
+  ASPECT=W/H;
+  HW=TAN*PZ*ASPECT;HH=TAN*PZ;
+  renderer.setSize(W,H,false);
+  camera.aspect=ASPECT;camera.updateProjectionMatrix();
+  fxCanvas.width=W*DPR;fxCanvas.height=H*DPR;
+  ridges.forEach(buildRidgeGeo);
+  initFx();
+}
+
+buildSky();
+buildRidges();
+buildRings();
+buildPlane();
+window.addEventListener('resize',()=>{
+  clearTimeout(window.__rsz);
+  window.__rsz=setTimeout(resize,120);
+});
+resize();
+
+let last=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  if(document.hidden)return;
+  const dt=Math.min((now-last)/1000,0.05);
+  last=now;
+  const t=now/1000;
+
+  tickTransition(dt);
+  tickSky();
+
+  const worldSpeed = (state==='flying') ? speed : (state==='dead' ? Math.max(0, speed*(1-(now-diedAt)/900)) : 1.6);
+  ambGain = (state==='flying') ? 0.25 + 0.75*clamp(dist/2200,0,1) : 0.7;
+  if(state==='flying'){
+    speed=Math.min(8, speed+0.011*dt);
+    dist+=worldSpeed*dt*6;
+    score+=worldSpeed*dt*0.6;
+    /* phase advance */
+    if(dist>=nextPhaseAt){
+      phaseIdx=(phaseIdx+1)%PHASES.length;
+      nextPhaseAt+=PHASES[phaseIdx].len;
+      startTransition(phaseIdx);
+    }
+    /* ring cadence */
+    ringSpawnIn-=worldSpeed*dt*6;
+    if(ringSpawnIn<=0){ spawnRing(); ringSpawnIn=85+Math.random()*55; }
+    if(Math.floor(dist)%3===0)updateHud();
+  }
+
+  decayField(dt);
+  strokeHeat=Math.max(0,strokeHeat-dt*1.4);
+  tickRidges(dt,worldSpeed);
+  tickRings(dt,worldSpeed);
+  tickPlane(dt,t);
+
+  audio.wind(clamp((Math.abs(plane.vx)+Math.abs(plane.vy))/4,0,1), strokeHeat);
+
+  renderer.render(scene,camera);
+  drawFx(dt,t);
+}
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
